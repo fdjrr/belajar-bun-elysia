@@ -1,15 +1,10 @@
-# Elysia with Bun runtime
+# Belajar Bun + ElysiaJS
 
-## Getting Started
-To get started with this template, simply paste this command into your terminal:
 ```bash
-bun create elysia ./elysia-example
+$ git clone git@github.com:fdjrr/belajar-bun-elysia.git
+$ cd belajar-bun-elysia
+$ bun install
+$ bunx prisma migrate dev --name posts
+$ bun run --watch src/index.ts
+$ bun build src/index.ts --compile --outfile=my-app
 ```
-
-## Development
-To start the development server run:
-```bash
-bun run dev
-```
-
-Open http://localhost:3000/ with your browser to see the result.
