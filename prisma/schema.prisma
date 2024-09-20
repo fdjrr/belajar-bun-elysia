@@ -13,14 +13,24 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id        Int      @id @default(autoincrement())
+  posts Post[]
+  name      String
+  email     String
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model Post {
   id        Int      @id @default(autoincrement())
+  user      User     @relation(fields: [user_id], references: [id])
+  user_id   Int
   title     String   @db.VarChar(255)
   content   String?
   image     String?
   published Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  @@map("posts")
 }

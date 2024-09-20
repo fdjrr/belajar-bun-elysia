@@ -3,10 +3,39 @@ import { writeFileSync } from "fs";
 import { join } from "path";
 import { nanoid } from "nanoid";
 import { uploadDir } from "../index";
+import { error } from "elysia";
 
-export async function getPosts() {
+type CreatePostProps = {
+    title: string;
+    content: string;
+    image?: File;
+    published?: boolean;
+};
+
+type UpdatePostProps = {
+    title?: string;
+    content?: string;
+    image?: File;
+    published?: boolean;
+};
+
+export async function getPosts(jwt: any, auth: any) {
     try {
-        const posts = await prisma.post.findMany({ orderBy: { id: "desc" } });
+        const user = await jwt.verify(auth.value);
+
+        if (!user) {
+            return error(401, {
+                success: false,
+                message: "Unauthorized",
+            });
+        }
+
+        const posts = await prisma.post.findMany({
+            where: {
+                user_id: user.id,
+            },
+            orderBy: { id: "desc" },
+        });
 
         return {
             success: true,
@@ -18,17 +47,31 @@ export async function getPosts() {
     }
 }
 
-export async function getPostsById(id: string) {
+export async function getPostsById(jwt: any, auth: any, id: string) {
     try {
+        const user = await jwt.verify(auth.value);
+
+        if (!user) {
+            return error(401, {
+                success: false,
+                message: "Unauthorized",
+            });
+        }
+
         const postId = parseInt(id);
 
-        const post = await prisma.post.findUnique({ where: { id: postId } });
+        const post = await prisma.post.findUnique({
+            where: {
+                id: postId,
+                user_id: user.id,
+            },
+        });
 
         if (!post) {
-            return {
+            return error(400, {
                 success: false,
                 message: "Data not found!",
-            };
+            });
         }
 
         return {
@@ -41,10 +84,19 @@ export async function getPostsById(id: string) {
     }
 }
 
-export async function createPost(options: { title: string; content: string; image?: File; published?: boolean }) {
+export async function createPost(jwt: any, auth: any, options: CreatePostProps) {
     try {
+        const user = await jwt.verify(auth.value);
+
+        if (!user) {
+            return error(401, {
+                success: false,
+                message: "Unauthorized",
+            });
+        }
+
         const { title, content, image, published } = options;
-        ``;
+
         let imageUrl = "";
         if (image) {
             const imageId = nanoid();
@@ -54,7 +106,7 @@ export async function createPost(options: { title: string; content: string; imag
             imageUrl = `/uploads/${imageId}-${image.name}`;
         }
 
-        const post = await prisma.post.create({ data: { title, content, ...(image ? { image: imageUrl } : {}), ...(published ? { published } : {}) } });
+        const post = await prisma.post.create({ data: { user_id: user.id, title, content, ...(image ? { image: imageUrl } : {}), ...(published ? { published } : {}) } });
 
         return {
             success: true,
@@ -66,17 +118,31 @@ export async function createPost(options: { title: string; content: string; imag
     }
 }
 
-export async function updatePost(id: string, options: { title?: string; content?: string; image?: File; published?: boolean }) {
+export async function updatePost(jwt: any, auth: any, id: string, options: UpdatePostProps) {
     try {
+        const user = await jwt.verify(auth.value);
+
+        if (!user) {
+            return error(401, {
+                success: false,
+                message: "Unauthorized",
+            });
+        }
+
         const postId = parseInt(id);
 
-        const post = await prisma.post.findUnique({ where: { id: postId } });
+        const post = await prisma.post.findUnique({
+            where: {
+                id: postId,
+                user_id: user.id,
+            },
+        });
 
         if (!post) {
-            return {
+            return error(400, {
                 success: false,
                 message: "Data not found!",
-            };
+            });
         }
 
         const { title, content, image, published } = options;
@@ -108,17 +174,31 @@ export async function updatePost(id: string, options: { title?: string; content?
     }
 }
 
-export const deletePost = async (id: string) => {
+export const deletePost = async (jwt: any, auth: any, id: string) => {
     try {
+        const user = await jwt.verify(auth.value);
+
+        if (!user) {
+            return error(401, {
+                success: false,
+                message: "Unauthorized",
+            });
+        }
+
         const postId = parseInt(id);
 
-        const post = await prisma.post.findUnique({ where: { id: postId } });
+        const post = await prisma.post.findUnique({
+            where: {
+                id: postId,
+                user_id: user.id,
+            },
+        });
 
         if (!post) {
-            return {
+            return error(400, {
                 success: false,
                 message: "Data not found!",
-            };
+            });
         }
 
         await prisma.post.delete({ where: { id: postId } });

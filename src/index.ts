@@ -2,6 +2,7 @@ import { Elysia } from "elysia";
 import Routes from "./routes";
 import { existsSync, mkdirSync, readFileSync } from "fs";
 import { join } from "path";
+import { cors } from "@elysiajs/cors";
 
 const app = new Elysia();
 
@@ -25,8 +26,13 @@ app.get("/uploads/:filename", ({ params }) => {
     });
 });
 
-app.group("/api", (app) => app.use(Routes));
+app.onTransform(function log({ body, params, path, request: { method } }) {
+    console.log(`${method} ${path}`, {
+        body,
+        params,
+    });
+}).group("/api", (app) => app.use(Routes));
 
-app.listen(3000);
+app.use(cors()).listen(3000);
 
 console.log(`🦊 Elysia is running at http://${app.server?.hostname}:${app.server?.port}`);
