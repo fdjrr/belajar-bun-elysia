@@ -9,19 +9,28 @@ type CreatePostProps = {
     title: string;
     content: string;
     image?: File;
-    published?: boolean;
+    category_id: string;
+    published?: string;
 };
 
 type UpdatePostProps = {
     title?: string;
     content?: string;
     image?: File;
-    published?: boolean;
+    category_id?: string;
+    published?: string;
 };
 
-export async function getPosts(jwt: any, auth: any) {
+export async function getPosts(jwt: any, bearer: any) {
     try {
-        const user = await jwt.verify(auth.value);
+        if (!bearer) {
+            return error(401, {
+                success: false,
+                message: "Unauthorized",
+            });
+        }
+
+        const user = await jwt.verify(bearer);
 
         if (!user) {
             return error(401, {
@@ -35,21 +44,48 @@ export async function getPosts(jwt: any, auth: any) {
                 user_id: user.id,
             },
             orderBy: { id: "desc" },
+            include: {
+                user: true,
+                category: true,
+            },
         });
 
         return {
             success: true,
             message: "List Data Posts!",
-            data: posts,
+            data: posts.map((post) => ({
+                ...post,
+                user: {
+                    id: post.user.id,
+                    name: post.user.name,
+                    email: post.user.email,
+                },
+                category: {
+                    id: post.category.id,
+                    name: post.category.name,
+                },
+            })),
         };
     } catch (e: unknown) {
         console.error(`Error getting posts: ${e}`);
+
+        return error(500, {
+            success: false,
+            message: "Internal server error",
+        });
     }
 }
 
-export async function getPostsById(jwt: any, auth: any, id: string) {
+export async function getPostsById(jwt: any, bearer: any, id: string) {
     try {
-        const user = await jwt.verify(auth.value);
+        if (!bearer) {
+            return error(401, {
+                success: false,
+                message: "Unauthorized",
+            });
+        }
+
+        const user = await jwt.verify(bearer);
 
         if (!user) {
             return error(401, {
@@ -64,6 +100,10 @@ export async function getPostsById(jwt: any, auth: any, id: string) {
             where: {
                 id: postId,
                 user_id: user.id,
+            },
+            include: {
+                user: true,
+                category: true,
             },
         });
 
@@ -77,16 +117,39 @@ export async function getPostsById(jwt: any, auth: any, id: string) {
         return {
             success: true,
             message: "Get Data Post!",
-            data: post,
+            data: {
+                ...post,
+                user: {
+                    id: post.user.id,
+                    name: post.user.name,
+                    email: post.user.email,
+                },
+                category: {
+                    id: post.category.id,
+                    name: post.category.name,
+                },
+            },
         };
     } catch (e: unknown) {
         console.error(`Error getting posts: ${e}`);
+
+        return error(500, {
+            success: false,
+            message: "Internal server error",
+        });
     }
 }
 
-export async function createPost(jwt: any, auth: any, options: CreatePostProps) {
+export async function createPost(jwt: any, bearer: any, options: CreatePostProps) {
     try {
-        const user = await jwt.verify(auth.value);
+        if (!bearer) {
+            return error(401, {
+                success: false,
+                message: "Unauthorized",
+            });
+        }
+
+        const user = await jwt.verify(bearer);
 
         if (!user) {
             return error(401, {
@@ -95,10 +158,41 @@ export async function createPost(jwt: any, auth: any, options: CreatePostProps) 
             });
         }
 
-        const { title, content, image, published } = options;
+        const { title, content, image, category_id, published } = options;
+
+        const categoryId = parseInt(category_id);
+
+        const category = await prisma.category.findUnique({
+            where: {
+                id: categoryId,
+            },
+        });
+
+        if (!category) {
+            return error(400, {
+                success: false,
+                message: "Category not found!",
+            });
+        }
 
         let imageUrl = "";
         if (image) {
+            const allowedMimeTypes = ["image/jpeg", "image/jpg", "image/png"];
+            if (!allowedMimeTypes.includes(image.type)) {
+                return error(400, {
+                    success: false,
+                    message: "Image type is not supported, accepted types are: " + allowedMimeTypes.join(", "),
+                });
+            }
+
+            const maxFileSize = 5 * 1024 * 1024; // 5MB
+            if (image.size > maxFileSize) {
+                return error(400, {
+                    success: false,
+                    message: "Image size is too large, max allowed size is " + maxFileSize + " bytes",
+                });
+            }
+
             const imageId = nanoid();
             const imagePath = join(uploadDir, `${imageId}-${image.name}`);
             const imageBytes = await image.bytes();
@@ -106,7 +200,16 @@ export async function createPost(jwt: any, auth: any, options: CreatePostProps) 
             imageUrl = `/uploads/${imageId}-${image.name}`;
         }
 
-        const post = await prisma.post.create({ data: { user_id: user.id, title, content, ...(image ? { image: imageUrl } : {}), ...(published ? { published } : {}) } });
+        const post = await prisma.post.create({
+            data: {
+                user_id: user.id,
+                title,
+                content,
+                ...(image ? { image: imageUrl } : {}),
+                category_id: category.id,
+                ...(published ? { published: Boolean(published) } : {}),
+            },
+        });
 
         return {
             success: true,
@@ -115,12 +218,24 @@ export async function createPost(jwt: any, auth: any, options: CreatePostProps) 
         };
     } catch (e: unknown) {
         console.error(`Error creating posts: ${e}`);
+
+        return error(500, {
+            success: false,
+            message: "Internal server error",
+        });
     }
 }
 
-export async function updatePost(jwt: any, auth: any, id: string, options: UpdatePostProps) {
+export async function updatePost(jwt: any, bearer: any, id: string, options: UpdatePostProps) {
     try {
-        const user = await jwt.verify(auth.value);
+        if (!bearer) {
+            return error(401, {
+                success: false,
+                message: "Unauthorized",
+            });
+        }
+
+        const user = await jwt.verify(bearer);
 
         if (!user) {
             return error(401, {
@@ -145,23 +260,61 @@ export async function updatePost(jwt: any, auth: any, id: string, options: Updat
             });
         }
 
-        const { title, content, image, published } = options;
+        const { title, content, image, category_id, published } = options;
+
+        let categoryId;
+        if (category_id) {
+            categoryId = parseInt(category_id);
+
+            const category = await prisma.category.findUnique({
+                where: {
+                    id: categoryId,
+                },
+            });
+
+            if (!category) {
+                return error(400, {
+                    success: false,
+                    message: "Category not found!",
+                });
+            }
+        }
 
         let imageUrl = "";
         if (image) {
+            const allowedMimeTypes = ["image/jpeg", "image/jpg", "image/png"];
+            if (!allowedMimeTypes.includes(image.type)) {
+                return error(400, {
+                    success: false,
+                    message: "Image type is not supported, accepted types are: " + allowedMimeTypes.join(", "),
+                });
+            }
+
+            const maxFileSize = 5 * 1024 * 1024; // 5MB
+            if (image.size > maxFileSize) {
+                return error(400, {
+                    success: false,
+                    message: "Image size is too large, max allowed size is " + maxFileSize + " bytes",
+                });
+            }
+
             const imageId = nanoid();
             const imagePath = join(uploadDir, `${imageId}-${image.name}`);
             const imageBytes = await image.bytes();
             writeFileSync(imagePath, imageBytes);
-
-            console.log(imagePath);
 
             imageUrl = `/uploads/${imageId}-${image.name}`;
         }
 
         const updatedPost = await prisma.post.update({
             where: { id: postId },
-            data: { ...(title ? { title } : {}), ...(content ? { content } : {}), ...(image ? { image: imageUrl } : {}), ...(published ? { published } : {}) },
+            data: {
+                title,
+                content,
+                ...(image ? { image: imageUrl } : {}),
+                ...(category_id ? { categoryId } : {}),
+                ...(published ? { published: Boolean(published) } : {}),
+            },
         });
 
         return {
@@ -171,12 +324,24 @@ export async function updatePost(jwt: any, auth: any, id: string, options: Updat
         };
     } catch (e: unknown) {
         console.error(`Error updating posts: ${e}`);
+
+        return error(500, {
+            success: false,
+            message: "Internal server error",
+        });
     }
 }
 
-export const deletePost = async (jwt: any, auth: any, id: string) => {
+export const deletePost = async (jwt: any, bearer: any, id: string) => {
     try {
-        const user = await jwt.verify(auth.value);
+        if (!bearer) {
+            return error(401, {
+                success: false,
+                message: "Unauthorized",
+            });
+        }
+
+        const user = await jwt.verify(bearer);
 
         if (!user) {
             return error(401, {
@@ -210,5 +375,10 @@ export const deletePost = async (jwt: any, auth: any, id: string) => {
         };
     } catch (e: unknown) {
         console.error(`Error deleting posts: ${e}`);
+
+        return error(500, {
+            success: false,
+            message: "Internal server error",
+        });
     }
 };

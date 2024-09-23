@@ -1,4 +1,4 @@
-import { Cookie, error } from "elysia";
+import { error } from "elysia";
 import prisma from "../../prisma/client";
 
 type RegisterProps = {
@@ -39,10 +39,15 @@ export async function register(options: RegisterProps) {
         };
     } catch (e: unknown) {
         console.log(e);
+
+        return error(500, {
+            success: false,
+            message: "Internal server error",
+        });
     }
 }
 
-export async function login(jwt: any, auth: any, options: LoginProps) {
+export async function login(jwt: any, options: LoginProps) {
     try {
         const { email, password } = options;
 
@@ -55,11 +60,7 @@ export async function login(jwt: any, auth: any, options: LoginProps) {
             });
         }
 
-        auth.set({
-            value: await jwt.sign({ id: user.id, name: user.name, email: user.email }),
-            httpOnly: true,
-            maxAge: 7 * 86400,
-        });
+        const access_token = await jwt.sign({ id: user.id, name: user.name, email: user.email });
 
         return {
             success: true,
@@ -71,9 +72,15 @@ export async function login(jwt: any, auth: any, options: LoginProps) {
                 createdAt: user.createdAt,
                 updatedAt: user.updatedAt,
             },
-            access_token: auth.value,
+            token_type: "Bearer",
+            access_token,
         };
     } catch (e: unknown) {
         console.log(e);
+
+        return error(500, {
+            success: false,
+            message: "Internal server error",
+        });
     }
 }

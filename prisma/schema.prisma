@@ -23,6 +23,14 @@ model User {
   updatedAt DateTime @updatedAt
 }
 
+model Category {
+  id        Int      @id @default(autoincrement())
+  posts Post[]
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model Post {
   id        Int      @id @default(autoincrement())
   user      User     @relation(fields: [user_id], references: [id])
@@ -30,6 +38,8 @@ model Post {
   title     String   @db.VarChar(255)
   content   String?
   image     String?
+  category  Category @relation(fields: [category_id], references: [id])
+  category_id Int
   published Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

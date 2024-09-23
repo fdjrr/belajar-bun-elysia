@@ -14,19 +14,20 @@ const Routes = new Elysia()
     )
     .group("/posts", (app) => {
         return app
-            .get("/", async ({ jwt, cookie: { auth } }) => getPosts(jwt, auth))
-            .get("/:id", async ({ jwt, cookie: { auth }, params: { id } }) => getPostsById(jwt, auth, id))
+            .get("/", async ({ jwt, bearer }) => getPosts(jwt, bearer))
+            .get("/:id", async ({ jwt, bearer, params: { id } }) => getPostsById(jwt, bearer, id))
             .post(
                 "/",
-                async ({ jwt, cookie: { auth }, body }) =>
+                async ({ jwt, bearer, body }) =>
                     createPost(
                         jwt,
-                        auth,
+                        bearer,
                         body as {
                             title: string;
                             content: string;
                             image?: File;
-                            published?: boolean;
+                            category_id: string;
+                            published?: string;
                         }
                     ),
                 {
@@ -41,29 +42,31 @@ const Routes = new Elysia()
                             maxLength: 1000,
                             error: "Content must be between 3 and 1000 characters",
                         }),
-                        image: t.Optional(
-                            t.File({
-                                maxFileSize: 5 * 1024 * 1024,
-                                allowedMimeTypes: ["image/jpeg", "image/png", "image/gif"],
-                                error: "Image must be a jpeg, png or gif file",
+                        image: t.Optional(t.File()),
+                        category_id: t.String({
+                            min: 1,
+                        }),
+                        published: t.Optional(
+                            t.String({
+                                min: 1,
                             })
                         ),
-                        published: t.Optional(t.Boolean()),
                     }),
                 }
             )
             .patch(
                 "/:id",
-                async ({ jwt, cookie: { auth }, params: { id }, body }) =>
+                async ({ jwt, bearer, params: { id }, body }) =>
                     updatePost(
                         jwt,
-                        auth,
+                        bearer,
                         id,
                         body as {
                             title?: string;
                             content?: string;
                             image?: File;
-                            published?: boolean;
+                            category_id?: string;
+                            published?: string;
                         }
                     ),
                 {
@@ -82,18 +85,21 @@ const Routes = new Elysia()
                                 error: "Content must be between 3 and 1000 characters",
                             })
                         ),
-                        image: t.Optional(
-                            t.File({
-                                maxFileSize: 5 * 1024 * 1024,
-                                allowedMimeTypes: ["image/jpeg", "image/png", "image/gif"],
-                                error: "Image must be a jpeg, png or gif file",
+                        image: t.Optional(t.File()),
+                        category_id: t.Optional(
+                            t.String({
+                                min: 1,
                             })
                         ),
-                        published: t.Optional(t.Boolean()),
+                        published: t.Optional(
+                            t.String({
+                                min: 1,
+                            })
+                        ),
                     }),
                 }
             )
-            .delete("/:id", async ({ jwt, cookie: { auth }, params: { id } }) => deletePost(jwt, auth, id));
+            .delete("/:id", async ({ jwt, bearer, params: { id } }) => deletePost(jwt, bearer, id));
     })
     .group("/auth", (app) => {
         return app
@@ -125,10 +131,9 @@ const Routes = new Elysia()
             )
             .post(
                 "/login",
-                async ({ jwt, cookie: { auth }, body }) =>
+                async ({ jwt, body }) =>
                     login(
                         jwt,
-                        auth,
                         body as {
                             email: string;
                             password: string;
